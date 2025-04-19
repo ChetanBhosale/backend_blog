@@ -4,11 +4,19 @@ const dotenv = require('dotenv');
 const connectDB = require('./config/db');
 const User = require('./model/User.model');
 const bcrypt = require('bcryptjs');
+const morgan = require('morgan');
+
 
 dotenv.config();
 const cors = require('cors');
 
-app.use(cors());
+app.use(cors({
+    origin: ['http://localhost:3000', 'http://localhost:8080'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+app.use(morgan('dev'));
 app.use(express.json());
 
 const PORT = process.env.PORT || 8000;
@@ -41,6 +49,9 @@ const PORT = process.env.PORT || 8000;
 //         console.error('Error creating admin account:', error.message);
 //     }
 // };
+
+const authRoutes = require("./routes/auth.routes")
+app.use("/api",authRoutes)
 
 app.listen(PORT, async () => {
     console.log(`Server is running on port ${PORT}`);

@@ -6,7 +6,16 @@ const { Response } = require('../services/Response');
 // Register new user
 exports.register = async (req, res) => {
     try {
-        const { name, email, password, roles } = req.body;
+        let { name, email, password, roles } = req.body;
+
+        if(!name || !email || !password || !roles){
+            return Response(res, 400, 'All fields are required');
+        }
+
+        email = email.toLowerCase().trim();
+        name = name.trim();
+        password = password.trim();
+        roles = roles.trim();
 
         // Check if role is valid and not admin
         if (!roles || !['student', 'collage_student', 'counsellor'].includes(roles)) {
@@ -72,7 +81,7 @@ exports.login = async (req, res) => {
             return Response(res, 400, 'Invalid credentials');
         }
 
-        // Verify password
+        let data = await User.find()
         const isValidPassword = await bcrypt.compare(password, user.password);
         if (!isValidPassword) {
             return Response(res, 400, 'Invalid credentials');
@@ -98,7 +107,8 @@ exports.login = async (req, res) => {
 
         return Response(res, 200, 'Login successful', {
             user: userForToken,
-            token
+            token,
+            message: 'Login Successfull!'
         });
 
     } catch (error) {
