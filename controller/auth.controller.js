@@ -6,6 +6,7 @@ const { Response } = require('../services/Response');
 // Register new user
 exports.register = async (req, res) => {
     try {
+        console.log('working')
         const { name, email, password, roles } = req.body;
 
         // Check if role is valid and not admin

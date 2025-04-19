@@ -7,6 +7,7 @@ const bcrypt = require('bcryptjs');
 
 dotenv.config();
 const cors = require('cors');
+const router = require('./routes/auth.routes');
 
 app.use(cors());
 app.use(express.json());
@@ -41,6 +42,8 @@ const PORT = process.env.PORT || 8000;
 //         console.error('Error creating admin account:', error.message);
 //     }
 // };
+
+app.use('/api', router)
 
 app.listen(PORT, async () => {
     console.log(`Server is running on port ${PORT}`);
