@@ -5,13 +5,13 @@ const connectDB = require('./config/db');
 const User = require('./model/User.model');
 const bcrypt = require('bcryptjs');
 const morgan = require('morgan');
-
+const index = require("./routes/index.routes")
 
 dotenv.config();
 const cors = require('cors');
 
 app.use(cors({
-    origin: ['http://localhost:3000', 'http://localhost:8080'],
+    origin: ['http://localhost:3000', 'http://localhost:8080', "http://localhost:8082"],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
@@ -50,8 +50,7 @@ const PORT = process.env.PORT || 8000;
 //     }
 // };
 
-const authRoutes = require("./routes/auth.routes")
-app.use("/api",authRoutes)
+app.use("/api", index)
 
 app.listen(PORT, async () => {
     console.log(`Server is running on port ${PORT}`);
