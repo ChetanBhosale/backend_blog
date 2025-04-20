@@ -1,18 +1,156 @@
 const dotenv = require("dotenv");
-const cloudinary = require("cloudinary").v2;
-cloudinary.config({
-  cloud_name: process.env.CLOUD_NAME,
-  api_key: process.env.API_KEY,
-  api_secret: process.env.API_SECRET,
-});
+const Blog = require("../model/Blog.model");
+const { GoogleGenAI } = require("@google/genai");
+const {Response} = require("../services/Response");
+const {scrapeContent} = require("../services/scrape");
+const xml2js = require("xml2js");
+dotenv.config();
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 exports.createBlog = async (req, res) => {
-  const { title, content, tags } = req.body;
+  let { title, content, tags, image='' } = req.body;
 
-  console.log("Title:", title);
-  console.log("Content:", content);
-  console.log("Tags:", tags);
-  res.json({
-    message: title,
-  });
+  try {
+    tags = tags.split(',').map(tag => tag.trim().toLowerCase());
+    console.log({image})
+    const blog = await Blog.create({title, content, tags, image})
+    
+    return Response(res, 201, "Blog created successfully", blog)
+    
+  } catch (error) {
+    console.log(error)
+    res.status(500).json({message: error.message})
+  }
+};
+
+exports.getAdminBlogs = async(req,res) => {
+  try {
+    const blogs = await Blog.find()
+    console.log({blogs})
+    return Response(res, 200, "Blogs fetched successfully", blogs)
+  } catch (error) {
+    return Response(res, 500, error.message)
+  }
+}
+
+
+async function generateContentWithAI(scrapedData, userPrompt) {
+  try {
+    
+    const prompt = `
+    You are a professional blog content writer. 
+    
+    I'm going to give you information from a webpage and I want you to create a well-structured blog post based on this information and my specific instructions.
+    
+    SCRAPED DATA:
+    URL: ${scrapedData.metadata.url}
+    TITLE: ${scrapedData.title}
+    CONTENT SUMMARY: ${scrapedData.content.substring(0, 2000)}...
+    
+    USER INSTRUCTIONS:
+    ${userPrompt}
+    
+    IMPORTANT: Format your response as a valid XML document with these exact tags:
+    - <title>: The blog post title (compelling and SEO-friendly)
+    - <content>: The complete blog post content in HTML format (include proper h1, h2, h3, p, ul, li, etc. tags)
+    - <tags>: 3-5 comma-separated relevant keywords/tags for the blog post
+    
+    The XML should look like:
+    <title>Your Generated Title Here</title>
+    <content><h1>Main Heading</h1><p>First paragraph...</p>...</content>
+    <tags>tag1,tag2,tag3</tags>
+    
+    Make sure to:
+    1. Write in a professional, engaging tone
+    2. Include relevant headings and subheadings (h1, h2, h3)
+    3. Make content at least 700 words with proper HTML formatting
+    4. Create content that's original and not copied from the source
+    5. Include a strong intro and conclusion
+    6. dont include html body and head tags, just start from direct content of div and h1 whatever you like which should be inside <content> tags
+    `;
+
+    const result = await await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: prompt,
+    });
+    
+    // const result = await model.generateContent(prompt);
+    const generatedText = result.text;
+
+    // const generatedText = response.text();
+    
+    // Validate that the response contains valid XML
+    if (!generatedText.includes('<title>') || !generatedText.includes('<content>') || !generatedText.includes('<tags>')) {
+      throw new Error('AI did not generate content in the correct XML format');
+    }
+    
+    return generatedText;
+  } catch (error) {
+    console.error('Error generating content with AI:', error.message);
+    throw new Error(`Failed to generate content with AI: ${error.message}`);
+  }
+}
+
+async function parseXmlContent(xmlString) {
+  try {
+    // Clean up the XML to ensure it's well-formed
+    let cleanedXml = xmlString.trim();
+    
+    // If the XML is not wrapped in a root element, wrap it
+    if (!cleanedXml.startsWith('<?xml') && !cleanedXml.startsWith('<root>')) {
+      cleanedXml = `<root>${cleanedXml}</root>`;
+    }
+    
+    // Use regex to extract parts directly (as backup method)
+    const titleMatch = cleanedXml.match(/<title>(.*?)<\/title>/s);
+    const contentMatch = cleanedXml.match(/<content>(.*?)<\/content>/s);
+    const tagsMatch = cleanedXml.match(/<tags>(.*?)<\/tags>/s);
+    
+    const title = titleMatch ? titleMatch[1] : '';
+    const content = contentMatch ? contentMatch[1] : '';
+    const tagsString = tagsMatch ? tagsMatch[1] : '';
+    
+    const tags = tagsString.split(',').map(tag => tag.trim());
+    
+    return {
+      title,
+      content,
+      tags
+    };
+  } catch (error) {
+    console.error('Error parsing XML content:', error);
+    throw new Error(`Failed to parse XML content: ${error.message}`);
+  }
+}
+
+exports.createContentUsingAI = async(req, res) => {
+  try {
+    const { link, prompt } = req.body;
+    
+    if (!link || !prompt) {
+      return Response(res, 400, "Link and prompt are required");
+    }
+
+    // Step 1: Scrape content from the provided link
+    const scrapedData = await scrapeContent(link);
+
+    console.log({scrapedData})
+    
+    // Step 2: Generate blog content using AI based on scraped data and prompt
+    const xmlContent = await generateContentWithAI(scrapedData, prompt);
+    
+    // Step 3: Parse the XML content
+    const parsedContent = await parseXmlContent(xmlContent);
+    
+    // Return the generated content
+    return Response(res, 200, "Content generated successfully", {
+      xmlContent,
+      parsedContent
+    });
+    
+  } catch (error) {
+    console.error("Error in createContentUsingAI:", error);
+    return Response(res, 500, error.message || "Failed to generate content");
+  }
 };

@@ -5,8 +5,9 @@ const connectDB = require('./config/db');
 const User = require('./model/User.model');
 const bcrypt = require('bcryptjs');
 const morgan = require('morgan');
-const index = require("./routes/index.routes")
 
+const fileUpload = require('express-fileupload');
+const path = require('path');
 dotenv.config();
 const cors = require('cors');
 
@@ -16,8 +17,25 @@ app.use(cors({
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
+app.use(express.urlencoded({ extended: true }));
+
+app.use(fileUpload(
+    {
+        useTempFiles: true,
+        tempFileDir: './temp/',
+        limits: {
+            fileSize: 1024 * 1024 * 5, // 5MB
+        },
+        abortOnLimit: true,
+        createParentPath: true,
+    }
+));
+
 app.use(morgan('dev'));
-app.use(express.json());
+app.use(express.json({
+    limit: '50mb',
+    extended: true,
+}));
 
 const PORT = process.env.PORT || 8000;
 
@@ -50,7 +68,10 @@ const PORT = process.env.PORT || 8000;
 //     }
 // };
 
+const index = require("./routes/index.routes")
+const blogRoutes = require("./routes/blog.routes")
 app.use("/api", index)
+app.use("/api/blogs", blogRoutes)
 
 app.listen(PORT, async () => {
     console.log(`Server is running on port ${PORT}`);
