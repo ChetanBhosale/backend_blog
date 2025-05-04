@@ -6,19 +6,20 @@ const { Response } = require('../services/Response');
 // Register new user
 exports.register = async (req, res) => {
     try {
-        let { name, email, password, roles } = req.body;
+        let { name, email, password, role } = req.body;
+        console.log(req.body)
 
-        if(!name || !email || !password || !roles){
+        if(!name || !email || !password || !role){
             return Response(res, 400, 'All fields are required');
         }
 
         email = email.toLowerCase().trim();
         name = name.trim();
         password = password.trim();
-        roles = roles.trim();
+        role = role.trim();
 
         // Check if role is valid and not admin
-        if (!roles || !['student', 'collage_student', 'counsellor'].includes(roles)) {
+        if (!role || !['student', 'collage_student', 'counsellor'].includes(role)) {
             return Response(res, 400, 'Invalid role selected');
         }
 
@@ -37,7 +38,7 @@ exports.register = async (req, res) => {
             name,
             email,
             password: hashedPassword,
-            roles
+            role
         });
 
         await user.save();
