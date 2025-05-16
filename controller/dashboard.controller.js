@@ -1,5 +1,6 @@
 const dotenv = require("dotenv");
 const Blog = require("../model/Blog.model");
+const User = require("../model/User.model")
 const { GoogleGenAI } = require("@google/genai");
 const { Response } = require("../services/Response");
 const { scrapeContent } = require("../services/scrape");
@@ -14,7 +15,7 @@ exports.createBlog = async (req, res) => {
   try {
     tags = tags.split(",").map((tag) => tag.trim().toLowerCase());
     console.log({ image });
-    const blog = await Blog.create({ title, content, tags, image });
+    const blog = await Blog.create({ title, content, tags, image, user : req.user._id });
 
     return Response(res, 201, "Blog created successfully", blog);
   } catch (error) {
@@ -39,7 +40,7 @@ exports.getBlogById = async (req, res) => {
     if (!id) {
       return Response(res, 400, "Blog id is required");
     }
-    const blogId = await Blog.findById(id);
+    const blogId = await Blog.findById(id).populate('user', 'name email');
     if (!blogId) {
       return Response(
         res,

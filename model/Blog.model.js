@@ -12,6 +12,7 @@ const BlogSchema = new mongoose.Schema({
     content : String,
     tags : [String],
     image : String,
+    user : {type : mongoose.Schema.Types.ObjectId, ref : "User"}
 },{timestamps : true})
 
 const Blog = mongoose.model('Blog', BlogSchema);   

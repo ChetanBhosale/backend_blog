@@ -1,4 +1,5 @@
 const Blog = require("../model/Blog.model")
+const Comment = require("../model/Comments.model");
 const { Response } = require("../services/Response")
 
 exports.getBlogs = async(req,res) => {
@@ -94,3 +95,39 @@ exports.getRelatedBlogs = async(req,res) => {
         return Response(res, 500, error.message)
     }
 }
+
+
+exports.createComment = async (req, res) => {
+  try {
+    const { blogId, content } = req.body;
+    const userId = req.user?._id;
+
+    if (!blogId || !content) {
+      return Response(res, 400, 'Blog ID and comment content are required');
+    }
+
+    const comment = await Comment.create({
+      blog: blogId,
+      user: userId,
+      content
+    });
+
+    return Response(res, 201, 'Comment added successfully', comment);
+  } catch (error) {
+    return Response(res, 500, error.message);
+  }
+};
+
+exports.getCommentsByBlog = async (req, res) => {
+  try {
+    const { blogId } = req.params;
+
+    const comments = await Comment.find({ blog: blogId })
+      .populate('user', 'name email')
+      .sort({ createdAt: -1 });
+
+    return Response(res, 200, 'Comments fetched successfully', comments);
+  } catch (error) {
+    return Response(res, 500, error.message);
+  }
+};
