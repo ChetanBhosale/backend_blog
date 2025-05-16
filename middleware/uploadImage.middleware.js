@@ -9,29 +9,27 @@ cloudinary.config({
     folder: process.env.CLOUDINARY_FOLDER
 });
 
+exports.uploadImage = async (req, res, next) => {
+    try {
+        // Check if req.files exists and has image property
+        if (!req.files || !req.files.image) {
+            return next();
+        }
 
-    exports.uploadImage = async (req, res, next) => {
-        try {
-          const { image } = req.files;
-          
-          if (!image) {
-            return res.status(400).json({
-              message: "No image provided"
-            });
-          }
-          const result = await cloudinary.uploader.upload(image.tempFilePath, {
+        const { image } = req.files;
+        const result = await cloudinary.uploader.upload(image.tempFilePath, {
             folder: process.env.CLOUDINARY_FOLDER,
             resource_type: 'auto'
-          });
-          
-          req.body.image = result.url;
-          next();
-      
-        } catch (error) {
-          console.error('Error uploading image:', error);
-          return res.status(500).json({
+        });
+        
+        req.body.image = result.url;
+        next();
+
+    } catch (error) {
+        console.error('Error uploading image:', error);
+        return res.status(500).json({
             message: "Error uploading image",
             error: error.message
-          });
-        }
+        });
+    }
 }
