@@ -24,7 +24,7 @@ app.use(fileUpload(
         useTempFiles: true,
         tempFileDir: './temp/',
         limits: {
-            fileSize: 1024 * 1024 * 5, // 5MB
+            fileSize: 1024 * 1024 * 20, // 5MB
         },
         abortOnLimit: true,
         createParentPath: true,
