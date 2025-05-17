@@ -1,6 +1,7 @@
 const Blog = require("../model/Blog.model");
 const Comment = require("../model/Comments.model");
 const { Response } = require("../services/Response");
+const mongoose = require("mongoose")
 
 exports.getBlogs = async (req, res) => {
   try {
@@ -86,27 +87,39 @@ exports.getPopulurTags = async (req, res) => {
 
 exports.getRelatedBlogs = async (req, res) => {
   try {
-    const { tags, search } = req.query;
-    const blogs = await Blog.aggregate([
+    const { tags = "", currentBlogId } = req.query;
+    const tagArray = tags ? tags.split(",") : [];
+
+    let blogs = await Blog.aggregate([
       {
         $match: {
-          tags: { $in: tags.split(",") },
-        },
-      },
-      {
-        $match: {
-          title: { $regex: search, $options: "i" },
+          ...(tagArray.length > 0 && { tags: { $in: tagArray } }),
+          ...(currentBlogId && { _id: { $ne: new mongoose.Types.ObjectId(currentBlogId) } }),
         },
       },
       {
         $limit: 5,
       },
     ]);
+
+    if (blogs.length === 0) {
+      blogs = await Blog.aggregate([
+        {
+          $match: {
+            ...(currentBlogId && { _id: { $ne: new mongoose.Types.ObjectId(currentBlogId) } }),
+          },
+        },
+        { $sample: { size: 5 } },
+      ]);
+    }
+
     return Response(res, 200, "Related blogs fetched successfully", blogs);
   } catch (error) {
+    console.log(error)
     return Response(res, 500, error.message);
   }
 };
+
 
 exports.createComment = async (req, res) => {
   try {
