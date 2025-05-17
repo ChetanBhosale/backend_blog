@@ -4,8 +4,8 @@ const mongoose = require('mongoose')
 const messageSchema = new mongoose.Schema({
     sender: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'user',
-        required: true
+        ref: 'User'
+        // Removed required: true to allow system messages
     },
     content: {
         type: String,
@@ -14,38 +14,43 @@ const messageSchema = new mongoose.Schema({
     attachments: [{
         type: String // URLs to any attached files/images
     }],
-    readBy: [{
+    role: {
+        type: String,
+        enum: ['user', 'system'],
+        default: 'user'
+    }
+}, { timestamps: true })
+
+
+const privateChat = new mongoose.Schema({
+    sender: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'user'
-    }],
-    // Reply related fields
-    isReply: {
+        ref: 'User',
+        required: true
+    },
+    receiver: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    isAccepted: {
         type: Boolean,
         default: false
     },
-    replyTo: {
-        message: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'message'
-        },
-        sender: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'user'
-        },
-        content: String // Store a snippet of the original message
-    },
-    // Thread of replies
-    replies: [{
+    messages: [messageSchema],
+    lastMessage: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'message'
-    }]
+    }
 }, { timestamps: true });
 
-// Group Schema
+
+privateChat.index({ sender: 1, receiver: 1 }, { unique: true });
+
 const groupSchema = new mongoose.Schema({
     name: {
         type: String,
-        required: true,
+        required: true
     },
     image: {
         type: String,
@@ -55,26 +60,26 @@ const groupSchema = new mongoose.Schema({
     tags: [String],
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'user',
+        ref: 'User',
         required: true
     },
     admins: [{
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'user'
+        ref: 'User'
     }],
     members: [{
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'user'
+        ref: 'User'
     }],
     messages: [messageSchema],
     isActive: {
         type: Boolean,
         default: true
     }
-}, { timestamps: true });
+}, { timestamps: true })
 
-// User-Group Relationship Schema
-const userGroupSchema = new mongoose.Schema({
+
+const joinedGroupSchema = new mongoose.Schema({
     group: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'group',
@@ -82,7 +87,7 @@ const userGroupSchema = new mongoose.Schema({
     },
     user: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'user',
+        ref: 'User',
         required: true
     },
     role: {
@@ -93,25 +98,13 @@ const userGroupSchema = new mongoose.Schema({
     joinedAt: {
         type: Date,
         default: Date.now
-    },
-    lastReadMessage: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'message'
     }
-}, { timestamps: true });
+}, { timestamps: true })
 
-// Create indexes for better query performance
-userGroupSchema.index({ group: 1, user: 1 }, { unique: true });
-groupSchema.index({ name: 'text', description: 'text' });
+joinedGroupSchema.index({ group: 1, user: 1 }, { unique: true })
+groupSchema.index({ name: 'text', description: 'text' })
 
 // Export the models
-exports.Group = mongoose.model('group', groupSchema);
-exports.UserGroup = mongoose.model('user_group', userGroupSchema);
-
-exports.messagedBy = {
-    user_id : {
-        type : mongoose.Schema.Types.ObjectId,
-        ref : "user"
-    },
-    group 
-}
+exports.Group = mongoose.model('group', groupSchema)
+exports.JoinedGroup = mongoose.model('joinedgroup', joinedGroupSchema)
+exports.PrivateChat = mongoose.model('privateChat', privateChat)
