@@ -1,5 +1,5 @@
 const express = require("express");
-const { createGroup, getAllGroups, leaveGroup, getUserChats, getSingleConverstationChat, sendMessage, joinGroup } = require("../controller/groups.controller");
+const { createGroup, getAllGroups, leaveGroup, getUserChats, getSingleConverstationChat, sendMessage, joinGroup, sendFriendRequest, respondToFriendRequest, getPendingFriendRequests } = require("../controller/groups.controller");
 const { authenticateUser } = require("../middleware/auth.middleware");
 const { uploadImage } = require("../middleware/uploadImage.middleware");
 const router = express.Router();
@@ -11,5 +11,9 @@ router.post('/join',authenticateUser,joinGroup)
 router.get('/chats', authenticateUser, getUserChats)
 router.get('/single-chat/:id',authenticateUser,getSingleConverstationChat)
 router.post('/send-message',authenticateUser,uploadImage,sendMessage)
+router.post('/send-friend-request',authenticateUser,sendFriendRequest)
+router.post('/respond-to-friend-request',authenticateUser,respondToFriendRequest)
+router.get('/pending-friend-requests', authenticateUser, getPendingFriendRequests)
 
 module.exports = router;
+

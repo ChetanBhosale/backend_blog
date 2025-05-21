@@ -33,9 +33,10 @@ const privateChat = new mongoose.Schema({
         ref: 'User',
         required: true
     },
-    isAccepted: {
-        type: Boolean,
-        default: false
+    status: {
+        type: String,
+        enum: ['pending', 'accepted', 'rejected'],
+        default: 'pending'
     },
     messages: [messageSchema],
     lastMessage: {

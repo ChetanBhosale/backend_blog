@@ -376,7 +376,8 @@ const getUserChats = async (req, res) => {
 
         let result = {
             groups: [],
-            privateChats: []
+            privateChats: [],
+            pendingRequests: []
         };
 
         // Get group chats if current is 'group' or 'all'
@@ -438,29 +439,57 @@ const getUserChats = async (req, res) => {
             .populate('receiver', 'name email roles')
             .populate('lastMessage');
 
-            result.privateChats = privateChats.map(chat => {
-                const otherUser = chat.sender._id.toString() === userId.toString() 
-                    ? chat.receiver 
-                    : chat.sender;
-                
-                return {
-                    chatId: chat._id,
-                    otherUser: {
-                        _id: otherUser._id,
-                        name: otherUser.name,
-                        email: otherUser.email,
-                        roles: otherUser.roles
-                    },
-                    isAccepted: chat.isAccepted,
-                    lastMessage: chat.lastMessage,
-                    unreadCount: 0,
-                    updatedAt: chat.updatedAt.toLocaleDateString('en-GB', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric'
-                    }).replace(/\//g, '/')
-                };
-            });
+            // Separate pending requests and active chats
+            result.privateChats = privateChats
+                .filter(chat => chat.status === 'accepted')
+                .map(chat => {
+                    const otherUser = chat.sender._id.toString() === userId.toString() 
+                        ? chat.receiver 
+                        : chat.sender;
+                    
+                    return {
+                        chatId: chat._id,
+                        otherUser: {
+                            _id: otherUser._id,
+                            name: otherUser.name,
+                            email: otherUser.email,
+                            roles: otherUser.roles
+                        },
+                        status: chat.status,
+                        lastMessage: chat.lastMessage,
+                        unreadCount: 0,
+                        updatedAt: chat.updatedAt.toLocaleDateString('en-GB', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric'
+                        }).replace(/\//g, '/')
+                    };
+                });
+
+            // Add pending requests
+            result.pendingRequests = privateChats
+                .filter(chat => chat.status === 'pending')
+                .map(chat => {
+                    const isSender = chat.sender._id.toString() === userId.toString();
+                    const otherUser = isSender ? chat.receiver : chat.sender;
+                    
+                    return {
+                        chatId: chat._id,
+                        otherUser: {
+                            _id: otherUser._id,
+                            name: otherUser.name,
+                            email: otherUser.email,
+                            roles: otherUser.roles
+                        },
+                        isSender,
+                        status: chat.status,
+                        createdAt: chat.createdAt.toLocaleDateString('en-GB', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric'
+                        }).replace(/\//g, '/')
+                    };
+                });
         }
 
         return res.status(200).json({
@@ -769,6 +798,170 @@ const sendMessage = async(req, res) => {
     }
 }
 
+const sendFriendRequest = async(req, res) => {
+    try {
+        const userId = req.user._id;
+        const { receiverId } = req.body;
+
+        if (!receiverId) {
+            return res.status(400).json({
+                success: false,
+                message: "Receiver ID is required"
+            });
+        }
+
+        // Check if a chat already exists between these users
+        const existingChat = await PrivateChat.findOne({
+            $or: [
+                { sender: userId, receiver: receiverId },
+                { sender: receiverId, receiver: userId }
+            ]
+        });
+
+        if (existingChat) {
+            return res.status(400).json({
+                success: false,
+                message: "Chat already exists between these users"
+            });
+        }
+
+        // Create new private chat with pending status
+        const newChat = await PrivateChat.create({
+            sender: userId,
+            receiver: receiverId,
+            status: 'pending',
+            messages: [{
+                content: `${req.user.name} sent you a friend request`,
+                role: 'system'
+            }]
+        });
+
+        return res.status(201).json({
+            success: true,
+            message: "Friend request sent successfully",
+            data: newChat
+        });
+
+    } catch (error) {
+        console.error('Error sending friend request:', error);
+        return res.status(500).json({
+            success: false,
+            message: "Error sending friend request",
+            error: error.message
+        });
+    }
+};
+
+const respondToFriendRequest = async(req, res) => {
+    try {
+        const userId = req.user._id;
+        const { chatId, action } = req.body;
+
+        if (!chatId || !action) {
+            return res.status(400).json({
+                success: false,
+                message: "Chat ID and action are required"
+            });
+        }
+
+        if (!['accepted', 'rejected'].includes(action)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid action. Must be 'accepted' or 'rejected'"
+            });
+        }
+
+        // Find the chat and verify the receiver
+        const chat = await PrivateChat.findOne({
+            _id: chatId,
+            receiver: userId,
+            status: 'pending'
+        });
+
+        if (!chat) {
+            return res.status(404).json({
+                success: false,
+                message: "Friend request not found or already processed"
+            });
+        }
+
+        // Update chat status
+        chat.status = action;
+        
+        // Add system message about the response
+        chat.messages.push({
+            content: action === 'accepted' 
+                ? `${req.user.name} accepted your friend request`
+                : `${req.user.name} rejected your friend request`,
+            role: 'system'
+        });
+
+        await chat.save();
+
+        return res.status(200).json({
+            success: true,
+            message: `Friend request ${action} successfully`,
+            data: chat
+        });
+
+    } catch (error) {
+        console.error('Error responding to friend request:', error);
+        return res.status(500).json({
+            success: false,
+            message: "Error responding to friend request",
+            error: error.message
+        });
+    }
+};
+
+const getPendingFriendRequests = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        // Find all pending friend requests where the current user is the receiver
+        const pendingRequests = await PrivateChat.find({
+            receiver: userId,
+            status: 'pending'
+        })
+        .populate('sender', 'name email roles')
+        .populate('receiver', 'name email roles')
+        .sort({ createdAt: -1 }); // Sort by newest first
+
+        // Format the response
+        const formattedRequests = pendingRequests.map(request => ({
+            requestId: request._id,
+            sender: {
+                _id: request.sender._id,
+                name: request.sender.name,
+                email: request.sender.email,
+                roles: request.sender.roles
+            },
+            status: request.status,
+            createdAt: request.createdAt.toLocaleDateString('en-GB', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            }).replace(/\//g, '/')
+        }));
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                totalRequests: pendingRequests.length,
+                requests: formattedRequests
+            }
+        });
+
+    } catch (error) {
+        console.error('Error fetching pending friend requests:', error);
+        return res.status(500).json({
+            success: false,
+            message: "Error fetching pending friend requests",
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
     createGroup,
     getAllGroups,
@@ -776,5 +969,9 @@ module.exports = {
     getUserChats,
     joinGroup,
     getSingleConverstationChat,
-    sendMessage
+    sendMessage,
+    sendFriendRequest,
+    respondToFriendRequest,
+    getPendingFriendRequests
 }
+
