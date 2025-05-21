@@ -1,3 +1,4 @@
+const { response } = require("express");
 const Blog = require("../model/Blog.model");
 const Comment = require("../model/Comments.model");
 const { Response } = require("../services/Response");
@@ -124,6 +125,7 @@ exports.getRelatedBlogs = async (req, res) => {
 exports.createComment = async (req, res) => {
   try {
     const { blogId, content } = req.body;
+    console.log(req.body)
     const userId = req.user?._id;
 
     if (!blogId || !content) {
@@ -143,6 +145,7 @@ exports.createComment = async (req, res) => {
 };
 
 exports.getCommentsByBlog = async (req, res) => {
+  console.log("this is called")
   try {
     const { blogId } = req.params;
 
@@ -153,5 +156,64 @@ exports.getCommentsByBlog = async (req, res) => {
     return Response(res, 200, "Comments fetched successfully", comments);
   } catch (error) {
     return Response(res, 500, error.message);
+  }
+};
+
+exports.updateComment = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const { content } = req.body; // assuming you are updating the content
+
+    // Validate input
+    if (!content) {
+      return res.status(400).json({ message: "Content is required." });
+    }
+
+    // Validate ObjectId (optional but recommended)
+    if (!commentId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ message: "Invalid comment ID." });
+    }
+
+    const updatedComment = await Comment.findByIdAndUpdate(
+      commentId,
+      { content },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedComment) {
+      return res.status(404).json({ message: "Comment not found." });
+    }
+
+    return res.status(200).json({
+      message: "Comment updated successfully.",
+      data: updatedComment,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+
+exports.deleteComments = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+
+    // Validate MongoDB ObjectId (optional but recommended)
+    if (!commentId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ message: "Invalid comment ID." });
+    }
+
+    const deletedComment = await Comment.findByIdAndDelete(commentId);
+
+    if (!deletedComment) {
+      return res.status(404).json({ message: "Comment not found." });
+    }
+
+    return res.status(200).json({
+      message: "Comment deleted successfully.",
+      data: deletedComment,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
 };
