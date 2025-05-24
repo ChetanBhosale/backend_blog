@@ -1,4 +1,5 @@
 const { Group, JoinedGroup, PrivateChat } = require("../model/group.model");
+const cors = require('cors');
 
 const createGroup = async (req, res) => {
   try {
@@ -390,50 +391,39 @@ const getUserChats = async (req, res) => {
         ],
       });
 
-      result.groups = joinedGroups.map((joinedGroup) => {
-        const group = joinedGroup.group;
-        const lastMessage =
-          group.messages && group.messages.length > 0
-            ? group.messages[group.messages.length - 1]
-            : null;
+      result.groups = joinedGroups
+        .filter(joinedGroup => joinedGroup.group) // Filter out any null groups
+        .map((joinedGroup) => {
+          const group = joinedGroup.group;
+          const lastMessage =
+            group.messages && group.messages.length > 0
+              ? group.messages[group.messages.length - 1]
+              : null;
 
-        return {
-          ...group.toObject(),
-          userRole: joinedGroup.role,
-          joinedAt: joinedGroup.joinedAt
-            .toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "2-digit",
-              year: "numeric",
-            })
-            .replace(/\//g, "/"),
-          memberCount: group.members.length,
-          adminCount: group.admins.length,
-          lastMessage: lastMessage
-            ? {
-                content: lastMessage.content,
-                sender: lastMessage.sender,
-                attachments: lastMessage.attachments,
-                createdAt: lastMessage.createdAt
-                  ? lastMessage.createdAt
-                      .toLocaleDateString("en-GB", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric",
-                      })
-                      .replace(/\//g, "/")
-                  : new Date()
-                      .toLocaleDateString("en-GB", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric",
-                      })
-                      .replace(/\//g, "/"),
-                role: lastMessage.role,
-              }
-            : null,
-        };
-      });
+          return {
+            ...group.toObject(),
+            userRole: joinedGroup.role,
+            joinedAt: joinedGroup.joinedAt
+              .toLocaleDateString("en-GB", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              })
+              .replace(/\//g, "/"),
+            memberCount: group.members ? group.members.length : 0,
+            adminCount: group.admins ? group.admins.length : 0,
+            lastMessage: lastMessage
+              ? {
+                  content: lastMessage.content,
+                  sender: lastMessage.sender,
+                  attachments: lastMessage.attachments,
+                  createdAt: lastMessage.createdAt,
+                  updatedAt: lastMessage.updatedAt,
+                  role: lastMessage.role,
+                }
+              : null,
+          };
+        });
     }
 
     // Get private chats if current is 'private' or 'all'
@@ -447,7 +437,7 @@ const getUserChats = async (req, res) => {
 
       // Separate pending requests and active chats
       result.privateChats = privateChats
-        .filter((chat) => chat.status === "accepted")
+        .filter((chat) => chat.status === "accepted" && chat.sender && chat.receiver)
         .map((chat) => {
           const otherUser =
             chat.sender._id.toString() === userId.toString()
@@ -465,19 +455,13 @@ const getUserChats = async (req, res) => {
             status: chat.status,
             lastMessage: chat.lastMessage,
             unreadCount: 0,
-            updatedAt: chat.updatedAt
-              .toLocaleDateString("en-GB", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-              })
-              .replace(/\//g, "/"),
+            updatedAt: chat.updatedAt,
           };
         });
 
       // Add pending requests
       result.pendingRequests = privateChats
-        .filter((chat) => chat.status === "pending")
+        .filter((chat) => chat.status === "pending" && chat.sender && chat.receiver)
         .map((chat) => {
           const isSender = chat.sender._id.toString() === userId.toString();
           const otherUser = isSender ? chat.receiver : chat.sender;
@@ -492,13 +476,7 @@ const getUserChats = async (req, res) => {
             },
             isSender,
             status: chat.status,
-            createdAt: chat.createdAt
-              .toLocaleDateString("en-GB", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-              })
-              .replace(/\//g, "/"),
+            createdAt: chat.createdAt,
           };
         });
     }
@@ -572,13 +550,8 @@ const getSingleConverstationChat = async (req, res) => {
               sender: message.sender,
               attachments: message.attachments,
               role: message.role,
-              createdAt: message.createdAt
-                .toLocaleDateString("en-GB", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                })
-                .replace(/\//g, "/"),
+              createdAt: message.createdAt,
+              updatedAt: message.updatedAt
             })),
           },
         },
@@ -587,10 +560,11 @@ const getSingleConverstationChat = async (req, res) => {
 
     // If not a group, check if it's a private chat
     const privateChat = await PrivateChat.findOne({
+      _id: id,
       $or: [
-        { sender: userId, receiver: id },
-        { sender: id, receiver: userId },
-      ],
+        { sender: userId },
+        { receiver: userId }
+      ]
     })
       .populate("sender", "name email roles")
       .populate("receiver", "name email roles")
@@ -627,13 +601,8 @@ const getSingleConverstationChat = async (req, res) => {
               sender: message.sender,
               attachments: message.attachments,
               role: message.role,
-              createdAt: message.createdAt
-                .toLocaleDateString("en-GB", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                })
-                .replace(/\//g, "/"),
+              createdAt: message.createdAt,
+              updatedAt: message.updatedAt
             })),
           },
         },
@@ -719,13 +688,8 @@ const sendMessage = async (req, res) => {
             sender: lastMessage.sender,
             attachments: lastMessage.attachments,
             role: lastMessage.role,
-            createdAt: lastMessage.createdAt
-              .toLocaleDateString("en-GB", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-              })
-              .replace(/\//g, "/"),
+            createdAt: lastMessage.createdAt,
+            updatedAt: lastMessage.updatedAt
           },
         },
       });
@@ -744,8 +708,19 @@ const sendMessage = async (req, res) => {
       privateChat = await PrivateChat.create({
         sender: userId,
         receiver: id,
-        isAccepted: false,
-        messages: [],
+        status: "pending",
+        messages: [{
+          content: `${req.user.name} sent you a friend request`,
+          role: "system"
+        }],
+      });
+    }
+
+    // Check if chat is accepted before allowing messages
+    if (privateChat.status !== "accepted") {
+      return res.status(403).json({
+        success: false,
+        message: "Cannot send message until friend request is accepted"
       });
     }
 
@@ -800,13 +775,8 @@ const sendMessage = async (req, res) => {
             sender: lastMessage.sender,
             attachments: lastMessage.attachments,
             role: lastMessage.role,
-            createdAt: lastMessage.createdAt
-              .toLocaleDateString("en-GB", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-              })
-              .replace(/\//g, "/"),
+            createdAt: lastMessage.createdAt,
+            updatedAt: lastMessage.updatedAt
           },
         },
       },
@@ -961,13 +931,7 @@ const getPendingFriendRequests = async (req, res) => {
         roles: request.sender.roles,
       },
       status: request.status,
-      createdAt: request.createdAt
-        .toLocaleDateString("en-GB", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-        })
-        .replace(/\//g, "/"),
+      createdAt: request.createdAt,
     }));
 
     return res.status(200).json({
