@@ -128,3 +128,78 @@ exports.me = async (req, res) => {
     }
 };
 
+// Get all user details
+exports.getUserDetails = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id).select('-password');
+        if (!user) {
+            return Response(res, 404, 'User not found');
+        }
+        return Response(res, 200, 'User details retrieved successfully', { user });
+    } catch (error) {
+        return Response(res, 500, error.message);
+    }
+};
+
+// Update user profile
+exports.updateProfile = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const {
+            name,
+            bio,
+            studentDetails,
+            collegeStudentDetails,
+            counsellorDetails
+        } = req.body;
+
+        // Find user and update
+        const user = await User.findById(userId);
+        if (!user) {
+            return Response(res, 404, 'User not found');
+        }
+
+        // Update basic info
+        if (name) user.name = name.trim();
+        if (bio) user.bio = bio.trim();
+
+        // Update role-specific details based on user's role
+        switch (user.roles) {
+            case 'student':
+                if (studentDetails) {
+                    user.studentDetails = {
+                        ...user.studentDetails,
+                        ...studentDetails
+                    };
+                }
+                break;
+            case 'collage_student':
+                if (collegeStudentDetails) {
+                    user.collegeStudentDetails = {
+                        ...user.collegeStudentDetails,
+                        ...collegeStudentDetails
+                    };
+                }
+                break;
+            case 'counsellor':
+                if (counsellorDetails) {
+                    user.counsellorDetails = {
+                        ...user.counsellorDetails,
+                        ...counsellorDetails
+                    };
+                }
+                break;
+        }
+
+        await user.save();
+
+        // Remove password from response
+        const updatedUser = user.toObject();
+        delete updatedUser.password;
+
+        return Response(res, 200, 'Profile updated successfully', { user: updatedUser });
+    } catch (error) {
+        return Response(res, 500, error.message);
+    }
+};
+
