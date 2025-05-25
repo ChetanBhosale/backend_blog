@@ -72,6 +72,9 @@ const index = require("./routes/index.routes")
 const blogRoutes = require("./routes/blog.routes")
 app.use("/api", index)
 app.use("/api/blogs", blogRoutes)
+app.get('/healt', async (req, res) => { 
+    res.send('Server is running');
+})
 
 app.listen(PORT, async () => {
     console.log(`Server is running on port ${PORT}`);
