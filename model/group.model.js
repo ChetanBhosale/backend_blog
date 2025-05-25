@@ -47,6 +47,30 @@ const privateChat = new mongoose.Schema({
 
 privateChat.index({ sender: 1, receiver: 1 }, { unique: true });
 
+// Add this new schema for ratings
+const ratingSchema = new mongoose.Schema({
+    fromUser: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    toUser: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    rating: {
+        type: Number,
+        required: true,
+        min: 1,
+        max: 1,
+        default: 1
+    }
+}, { timestamps: true });
+
+// Add unique compound index to ensure one rating per user pair
+ratingSchema.index({ fromUser: 1, toUser: 1 }, { unique: true });
+
 const groupSchema = new mongoose.Schema({
     name: {
         type: String,
@@ -75,7 +99,8 @@ const groupSchema = new mongoose.Schema({
     isActive: {
         type: Boolean,
         default: true
-    }
+    },
+    ratings: [ratingSchema]
 }, { timestamps: true })
 
 

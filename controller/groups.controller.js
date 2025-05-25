@@ -764,7 +764,7 @@ const sendMessage = async (req, res) => {
       await PrivateChat.findByIdAndUpdate(
         privateChat._id,
         {
-          $push: { messages: newMessage },
+        $push: { messages: newMessage },
           $set: { lastMessage: newMessage }
         },
         { new: true }
@@ -785,8 +785,8 @@ const sendMessage = async (req, res) => {
       
       // Determine the other user correctly based on who is sender/receiver
       const otherUser = updatedChat.sender._id.toString() === userId.toString()
-        ? updatedChat.receiver
-        : updatedChat.sender;
+          ? updatedChat.receiver
+          : updatedChat.sender;
 
       // Determine if the current user is the sender
       const isSender = updatedChat.sender._id.toString() === userId.toString();
@@ -1129,6 +1129,222 @@ const getReleatedGroups = async(req, res) => {
   }
 };
 
+// Add this new function to handle ratings
+const rateUserInGroup = async (req, res) => {
+  try {
+    const { groupId, toUserId } = req.body;
+    const fromUserId = req.user._id;
+
+    // Validate input
+    if (!groupId || !toUserId) {
+      return res.status(400).json({
+        success: false,
+        message: "Group ID and user ID to rate are required"
+      });
+    }
+
+    // Find the group
+    const group = await Group.findById(groupId)
+      .populate("members", "name email roles");
+
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: "Group not found"
+      });
+    }
+
+    // Check if both users are members of the group
+    const isFromUserMember = group.members.some(
+      member => member._id.toString() === fromUserId.toString()
+    );
+    const isToUserMember = group.members.some(
+      member => member._id.toString() === toUserId.toString()
+    );
+
+    if (!isFromUserMember || !isToUserMember) {
+      return res.status(403).json({
+        success: false,
+        message: "Both users must be members of the group"
+      });
+    }
+
+    // Check if user is trying to rate themselves
+    if (fromUserId.toString() === toUserId.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot rate yourself"
+      });
+    }
+
+    // Check if rating already exists
+    const existingRating = group.ratings.find(
+      rating => 
+        rating.fromUser.toString() === fromUserId.toString() && 
+        rating.toUser.toString() === toUserId.toString()
+    );
+
+    let updatedGroup;
+    let action = '';
+
+    if (existingRating) {
+      // Remove the existing rating
+      updatedGroup = await Group.findByIdAndUpdate(
+        groupId,
+        {
+          $pull: { 
+            ratings: { 
+              fromUser: fromUserId,
+              toUser: toUserId
+            } 
+          }
+        },
+        { new: true }
+      )
+      .populate("createdBy", "name email roles")
+      .populate("admins", "name email roles")
+      .populate("members", "name email roles")
+      .populate({
+        path: "ratings",
+        populate: {
+          path: "fromUser toUser",
+          select: "name email roles"
+        }
+      });
+
+      action = 'removed';
+    } else {
+      // Add new rating
+      const newRating = {
+        fromUser: fromUserId,
+        toUser: toUserId,
+        rating: 1 // Since it's always 1 star
+      };
+
+      // Update group with new rating
+      updatedGroup = await Group.findByIdAndUpdate(
+        groupId,
+        {
+          $push: { ratings: newRating }
+        },
+        { new: true }
+      )
+      .populate("createdBy", "name email roles")
+      .populate("admins", "name email roles")
+      .populate("members", "name email roles")
+      .populate({
+        path: "ratings",
+        populate: {
+          path: "fromUser toUser",
+          select: "name email roles"
+        }
+      });
+
+      action = 'added';
+    }
+
+    // Get the rating if it was added
+    const currentRating = updatedGroup.ratings.find(
+      rating => 
+        rating.fromUser._id.toString() === fromUserId.toString() && 
+        rating.toUser._id.toString() === toUserId.toString()
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Rating ${action} successfully`,
+      data: {
+        action,
+        rating: currentRating ? {
+          _id: currentRating._id,
+          fromUser: {
+            _id: currentRating.fromUser._id,
+            name: currentRating.fromUser.name,
+            email: currentRating.fromUser.email,
+            roles: currentRating.fromUser.roles
+          },
+          toUser: {
+            _id: currentRating.toUser._id,
+            name: currentRating.toUser.name,
+            email: currentRating.toUser.email,
+            roles: currentRating.toUser.roles
+          },
+          rating: currentRating.rating,
+          createdAt: currentRating.createdAt
+        } : null,
+        totalRatings: updatedGroup.ratings.filter(
+          rating => rating.toUser._id.toString() === toUserId.toString()
+        ).length
+      }
+    });
+
+  } catch (error) {
+    console.error("Error toggling user rating:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error toggling user rating",
+      error: error.message
+    });
+  }
+};
+
+// Add this function to get user ratings in a group
+const getUserRatingsInGroup = async (req, res) => {
+  try {
+    const { groupId, userId } = req.params;
+
+    const group = await Group.findById(groupId)
+      .populate({
+        path: "ratings",
+        populate: {
+          path: "fromUser toUser",
+          select: "name email roles"
+        }
+      });
+
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: "Group not found"
+      });
+    }
+
+    // Get all ratings for the specified user
+    const userRatings = group.ratings.filter(
+      rating => rating.toUser._id.toString() === userId
+    );
+
+    // Calculate total ratings
+    const totalRatings = userRatings.length;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        totalRatings,
+        ratings: userRatings.map(rating => ({
+          _id: rating._id,
+          fromUser: {
+            _id: rating.fromUser._id,
+            name: rating.fromUser.name,
+            email: rating.fromUser.email,
+            roles: rating.fromUser.roles
+          },
+          rating: rating.rating,
+          createdAt: rating.createdAt
+        }))
+      }
+    });
+
+  } catch (error) {
+    console.error("Error fetching user ratings:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error fetching user ratings",
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   createGroup,
   getAllGroups,
@@ -1142,4 +1358,6 @@ module.exports = {
   getPendingFriendRequests,
   getMostUsedGroupTags,
   getReleatedGroups,
+  rateUserInGroup,
+  getUserRatingsInGroup,
 };
