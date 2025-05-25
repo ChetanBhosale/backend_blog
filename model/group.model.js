@@ -40,8 +40,7 @@ const privateChat = new mongoose.Schema({
     },
     messages: [messageSchema],
     lastMessage: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'message'
+        type : Object,
     }
 }, { timestamps: true });
 

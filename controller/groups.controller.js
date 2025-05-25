@@ -1,3 +1,4 @@
+const {ObjectId} = require('mongodb');
 const Blog = require("../model/Blog.model");
 const { Group, JoinedGroup, PrivateChat } = require("../model/group.model");
 // const Blog = require("../model/blog.model");
@@ -460,6 +461,8 @@ const getUserChats = async (req, res) => {
           };
         });
 
+      console.log({result})
+
       // Add pending requests
       result.pendingRequests = privateChats
         .filter((chat) => chat.status === "pending" && chat.sender && chat.receiver)
@@ -628,6 +631,7 @@ const sendMessage = async (req, res) => {
   try {
     const { id, content, attachments = [] } = req.body;
     const userId = req.user._id;
+    
     if (!content) {
       return res.status(400).json({
         success: false,
@@ -635,24 +639,109 @@ const sendMessage = async (req, res) => {
       });
     }
 
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "Chat ID is required",
+      });
+    }
+
     // Check if it's a group chat
     const group = await Group.findById(id);
     if (group) {
-      // Existing group chat logic remains unchanged
-      // ...
-    } else {
-      // Handle private chat
-      let privateChat = await PrivateChat.findOne({
-        $or: [
-          { sender: userId, receiver: id },
-          { sender: id, receiver: userId },
-        ],
+      const isMember = group.members.some(
+        (member) => member._id.toString() === userId.toString()
+      );
+      
+      if (!isMember) {
+        return res.status(403).json({
+          success: false,
+          message: "You are not a member of this group",
+        });
+      }
+
+      const newMessage = {
+        sender: userId,
+        content,
+        attachments,
+        role: "user",
+      };
+
+      await Group.findByIdAndUpdate(
+        group._id,
+        {
+          $push: { messages: newMessage }
+        },
+        { new: true }
+      );
+
+      const updatedGroup = await Group.findById(group._id)
+        .populate("createdBy", "name email roles")
+        .populate("admins", "name email roles")
+        .populate("members", "name email roles")
+        .populate({
+          path: "messages",
+          populate: {
+            path: "sender",
+            select: "name email roles",
+          },
+        });
+
+      // Get user's role in the group
+      const joinedGroup = await JoinedGroup.findOne({
+        group: group._id,
+        user: userId,
       });
+
+      const lastMessage = updatedGroup.messages[updatedGroup.messages.length - 1];
+
+      return res.status(200).json({
+        success: true,
+        message: "Message sent successfully",
+        data: {
+          group_chat: true,
+          chat_details: {
+            _id: updatedGroup._id,
+            name: updatedGroup.name,
+            image: updatedGroup.image,
+            description: updatedGroup.description,
+            createdBy: updatedGroup.createdBy,
+            admins: updatedGroup.admins,
+            members: updatedGroup.members,
+            userRole: joinedGroup.role,
+            message: {
+              _id: lastMessage._id,
+              content: lastMessage.content,
+              sender: lastMessage.sender,
+              attachments: lastMessage.attachments,
+              role: lastMessage.role,
+              createdAt: lastMessage.createdAt,
+              updatedAt: lastMessage.updatedAt,
+            },
+          },
+        },
+      });
+    } else {
+      const privateChat = await PrivateChat.findById(id)
+        .populate("sender", "name email roles")
+        .populate("receiver", "name email roles");
 
       if (!privateChat) {
         return res.status(404).json({
           success: false,
-          message: "No chat exists with this user. Send a friend request first.",
+          message: "Chat not found",
+        });
+      }
+
+      // Verify that the current user is either sender or receiver
+      const isParticipant = 
+        privateChat.sender._id.toString() === userId.toString() || 
+        privateChat.receiver._id.toString() === userId.toString();
+
+      if (!isParticipant) {
+        return res.status(403).json({
+          success: false,
+          message: "You are not a participant in this chat",
         });
       }
 
@@ -670,10 +759,16 @@ const sendMessage = async (req, res) => {
         role: "user",
       };
 
-      await PrivateChat.findByIdAndUpdate(privateChat._id, {
-        $push: { messages: newMessage },
-        $set: { lastMessage: newMessage },
-      });
+
+      // Update private chat with new message
+      await PrivateChat.findByIdAndUpdate(
+        privateChat._id,
+        {
+          $push: { messages: newMessage },
+          $set: { lastMessage: newMessage }
+        },
+        { new: true }
+      );
 
       const updatedChat = await PrivateChat.findById(privateChat._id)
         .populate("sender", "name email roles")
@@ -687,10 +782,14 @@ const sendMessage = async (req, res) => {
         });
 
       const lastMessage = updatedChat.messages[updatedChat.messages.length - 1];
-      const otherUser =
-        updatedChat.sender._id.toString() === userId.toString()
-          ? updatedChat.receiver
-          : updatedChat.sender;
+      
+      // Determine the other user correctly based on who is sender/receiver
+      const otherUser = updatedChat.sender._id.toString() === userId.toString()
+        ? updatedChat.receiver
+        : updatedChat.sender;
+
+      // Determine if the current user is the sender
+      const isSender = updatedChat.sender._id.toString() === userId.toString();
 
       return res.status(200).json({
         success: true,
@@ -706,6 +805,7 @@ const sendMessage = async (req, res) => {
               roles: otherUser.roles,
             },
             isAccepted: updatedChat.status === "accepted",
+            isSender,
             message: {
               _id: lastMessage._id,
               content: lastMessage.content,
