@@ -1,5 +1,6 @@
+const Blog = require("../model/Blog.model");
 const { Group, JoinedGroup, PrivateChat } = require("../model/group.model");
-const cors = require('cors');
+// const Blog = require("../model/blog.model");
 
 const createGroup = async (req, res) => {
   try {
@@ -925,6 +926,108 @@ const getMostUsedGroupTags = async (req, res) => {
   }
 };
 
+const getReleatedGroups = async(req, res) => {
+  try {
+    const blogId = req.params.id;
+
+    // Find the blog to get its data
+    const blog = await Blog.findById(blogId);
+    
+    if (!blog) {
+      return res.status(404).json({
+        success: false,
+        message: "Blog not found"
+      });
+    }
+
+    // Create search query using blog data
+    const searchQuery = {
+      isActive: true,
+      $or: []
+    };
+
+    // Add tag matching if blog has tags
+    if (blog.tags && blog.tags.length > 0) {
+      searchQuery.$or.push({
+        tags: { $in: blog.tags.map(tag => new RegExp(tag, 'i')) }
+      });
+    }
+
+    // Add title/name matching
+    if (blog.title) {
+      searchQuery.$or.push({
+        name: { $regex: blog.title, $options: 'i' }
+      });
+    }
+
+    // Add content/description matching
+    if (blog.content) {
+      searchQuery.$or.push({
+        description: { $regex: blog.content, $options: 'i' }
+      });
+    }
+
+    // If no search criteria available, return 3 most recent groups
+    if (searchQuery.$or.length === 0) {
+      const recentGroups = await Group.find({ isActive: true })
+        .populate("createdBy", "name email roles")
+        .populate("admins", "name email roles")
+        .populate("members", "name email roles")
+        .sort({ createdAt: -1 })
+        .limit(3);
+
+      return res.status(200).json({
+        success: true,
+        data: recentGroups
+      });
+    }
+
+    // Find matching groups
+    const matchingGroups = await Group.find(searchQuery)
+      .populate("createdBy", "name email roles")
+      .populate("admins", "name email roles")
+      .populate("members", "name email roles")
+      .sort({ createdAt: -1 });
+
+    // If we have 3 or more matches, return them
+    if (matchingGroups.length >= 3) {
+      return res.status(200).json({
+        success: true,
+        data: matchingGroups.slice(0, 3)
+      });
+    }
+
+    // If we have fewer than 3 matches, get additional groups
+    const remainingCount = 3 - matchingGroups.length;
+    const existingGroupIds = matchingGroups.map(group => group._id);
+
+    const additionalGroups = await Group.find({
+      _id: { $nin: existingGroupIds },
+      isActive: true
+    })
+      .populate("createdBy", "name email roles")
+      .populate("admins", "name email roles")
+      .populate("members", "name email roles")
+      .sort({ createdAt: -1 })
+      .limit(remainingCount);
+
+    // Combine matching and additional groups
+    const allGroups = [...matchingGroups, ...additionalGroups];
+
+    return res.status(200).json({
+      success: true,
+      data: allGroups
+    });
+
+  } catch (error) {
+    console.error("Error fetching related groups:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error fetching related groups",
+      error: error.message
+    });
+  }
+};
 
 module.exports = {
   createGroup,
@@ -938,4 +1041,5 @@ module.exports = {
   respondToFriendRequest,
   getPendingFriendRequests,
   getMostUsedGroupTags,
+  getReleatedGroups,
 };
