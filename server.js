@@ -12,7 +12,7 @@ dotenv.config();
 const cors = require('cors');
 
 app.use(cors({
-    origin: ['http://localhost:3000', 'http://localhost:8080', "http://localhost:8082"],
+    origin: ['http://localhost:3000', 'http://localhost:8080', "http://localhost:8082","https://blogstudent-portal-nexus-dkm3.vercel.app"],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
