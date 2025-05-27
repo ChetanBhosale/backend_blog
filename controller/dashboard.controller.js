@@ -15,12 +15,27 @@ exports.createBlog = async (req, res) => {
   try {
     tags = tags.split(",").map((tag) => tag.trim().toLowerCase());
     console.log({ image });
-    const blog = await Blog.create({ title, content, tags, image, user : req.user._id });
+
+    let countDoc = await Blog.countDocuments({ user : req.user._id, isFeatured : true });
+
+    let isFeatured = countDoc > 6 ? false : true;
+
+    const blog = await Blog.create({ title, content, tags, image, user : req.user._id, isFeatured : isFeatured });
 
     return Response(res, 201, "Blog created successfully", blog);
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getFeaturedBlogs = async (req, res) => {
+  try {
+    const blogs = await Blog.find({ isFeatured : true });
+    console.log({ blogs });
+    return Response(res, 200, "Blogs fetched successfully", blogs);
+  } catch (error) {
+    return Response(res, 500, error.message);
   }
 };
 
@@ -59,10 +74,16 @@ exports.getBlogById = async (req, res) => {
 exports.updateBlog = async (req, res) => {
   try {
     const blogId = req.params.id;
-    const { title, content, tags } = req.body;
+    const { title, content, tags, isFeatured } = req.body;
 
     // Find the blog
     const existingBlog = await Blog.findById(blogId);
+    if(existingBlog.isFeatured !== isFeatured && typeof isFeatured === 'boolean'){
+      let countDoc = await Blog.countDocuments({ user : req.user._id, isFeatured : true });
+      if(countDoc > 6){
+        return res.status(400).json({ message: "You can't have more than 6 featured blogs" });
+      }
+    }
     if (!existingBlog) {
       return res.status(404).json({ message: "Blog not found" });
     }
@@ -72,6 +93,7 @@ exports.updateBlog = async (req, res) => {
       title,
       content,
       tags: tags ? tags.split(",").map((tag) => tag.trim()) : [],
+      isFeatured
     };
 
     // If new image uploaded, convert to base64
