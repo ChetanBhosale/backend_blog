@@ -2,6 +2,7 @@ const User = require('../model/User.model');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Response } = require('../services/Response');
+const { generateOTP, sendOTPEmail } = require('../services/email.service');
 
 // Register new user
 exports.register = async (req, res) => {
@@ -198,6 +199,125 @@ exports.updateProfile = async (req, res) => {
         delete updatedUser.password;
 
         return Response(res, 200, 'Profile updated successfully', { user: updatedUser });
+    } catch (error) {
+        return Response(res, 500, error.message);
+    }
+};
+
+// Send OTP for registration
+exports.sendOTP = async (req, res) => {
+    try {
+        const { email } = req.body;
+        
+        if (!email) {
+            return Response(res, 400, 'Email is required');
+        }
+
+        // Check if user already exists
+        const existingUser = await User.findOne({ email });
+        if (existingUser && existingUser.isEmailVerified) {
+            return Response(res, 400, 'User already exists');
+        }
+
+        // Generate OTP
+        const otp = generateOTP();
+        const otpExpiry = new Date();
+        otpExpiry.setMinutes(otpExpiry.getMinutes() + 10); // OTP valid for 10 minutes
+
+        // If user exists but not verified, update OTP
+        if (existingUser) {
+            existingUser.otp = {
+                code: otp,
+                expiresAt: otpExpiry
+            };
+            await existingUser.save();
+        } else {
+            // Create new temporary user
+            const tempUser = new User({
+                email,
+                otp: {
+                    code: otp,
+                    expiresAt: otpExpiry
+                }
+            });
+            await tempUser.save();
+        }
+
+        // Send OTP email
+        const emailSent = await sendOTPEmail(email, otp);
+        if (!emailSent) {
+            return Response(res, 500, 'Failed to send OTP email');
+        }
+
+        return Response(res, 200, 'OTP sent successfully');
+    } catch (error) {
+        console.error('Send OTP Error:', error);
+        return Response(res, 500, error.message);
+    }
+};
+
+// Verify OTP and complete registration
+exports.verifyOTPAndRegister = async (req, res) => {
+    console.log(req.body, "body")
+    try {
+        const { email, otp, name, password, role } = req.body;
+
+        if (!email || !otp || !name || !password || !role) {
+            return Response(res, 400, 'All fields are required');
+        }
+
+        // Find temporary user with OTP
+        const tempUser = await User.findOne({
+            email,
+            'otp.code': otp,
+            'otp.expiresAt': { $gt: new Date() }
+        });
+
+        if (!tempUser) {
+            return Response(res, 400, 'Invalid or expired OTP');
+        }
+
+        // Check if role is valid
+        if (!['student', 'collage_student', 'counsellor'].includes(role)) {
+            return Response(res, 400, 'Invalid role selected');
+        }
+
+        // Hash password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        // Update user with registration details
+        tempUser.name = name.trim();
+        tempUser.password = hashedPassword;
+        tempUser.role = role.trim();
+        tempUser.isEmailVerified = true;
+        tempUser.otp = undefined; // Remove OTP after successful verification
+
+        await tempUser.save();
+
+        // Remove password from token data
+        const userForToken = tempUser.toObject();
+        delete userForToken.password;
+
+        // Create JWT token
+        const token = jwt.sign(
+            { user: userForToken },
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        // Set cookie
+        res.cookie('token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            maxAge: 24 * 60 * 60 * 1000 // 24 hours
+        });
+
+        return Response(res, 201, 'User registered successfully', {
+            user: userForToken,
+            token
+        });
+
     } catch (error) {
         return Response(res, 500, error.message);
     }

@@ -1,98 +1,56 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
-    name : String,
-    email : {
-        type : String,
-        trim: true,
-        required: true,
-        lowercase: true,
-        unique: true,
-        validate : {
-            validator : function(v){
-                return /^\S+@\S+\.\S+$/.test(v);
-            },
-            message : 'Please enter a valid email'
-        }
-    },
-    password : {
-        type : String,
-        required : true,
-        minlength : 8
-    },
-    roles : {
-        type : String,
-        enum : ['student', 'collage_student', 'admin', "counsellor"],
-        default : 'student'
-    },
-    // Common fields for all users
-    bio: {
+    name: {
         type: String,
+        required: function() {
+            return this.isEmailVerified; // Only required after email verification
+        },
         trim: true
     },
-    // Student specific fields
+    email: {
+        type: String,
+        required: true,
+        unique: true,
+        trim: true,
+        lowercase: true
+    },
+    password: {
+        type: String,
+        required: function() {
+            return this.isEmailVerified; // Only required after email verification
+        }
+    },
+    role: {
+        type: String,
+        enum: ['student', 'collage_student', 'counsellor'],
+        required: function() {
+            return this.isEmailVerified; // Only required after email verification
+        }
+    },
+    isEmailVerified: {
+        type: Boolean,
+        default: false
+    },
+    otp: {
+        code: String,
+        expiresAt: Date
+    },
+    bio: String,
     studentDetails: {
-        collegeDetails: {
-            type: String,
-            trim: true
-        },
-        catScore: {
-            type: Number
-        },
-        address: {
-            type: String,
-            trim: true
-        }
+        type: Object,
+        default: {}
     },
-    // College student specific fields
     collegeStudentDetails: {
-        collegeName: {
-            type: String,
-            trim: true
-        },
-        currentYear: {
-            type: Number
-        },
-        branch: {
-            type: String,
-            trim: true
-        },
-        collegeEmail: {
-            type: String,
-            trim: true,
-            lowercase: true,
-            validate: {
-                validator: function(v) {
-                    return /^\S+@\S+\.\S+$/.test(v);
-                },
-                message: 'Please enter a valid college email'
-            }
-        }
+        type: Object,
+        default: {}
     },
-    // Counsellor specific fields
     counsellorDetails: {
-        counsellorEmail: {
-            type: String,
-            trim: true,
-            lowercase: true,
-            validate: {
-                validator: function(v) {
-                    return /^\S+@\S+\.\S+$/.test(v);
-                },
-                message: 'Please enter a valid counsellor email'
-            }
-        },
-        details: {
-            type: String,
-            trim: true
-        }
-    },
-    createdAt : {
-        type : Date,
-        default : Date.now
+        type: Object,
+        default: {}
     }
-})
+}, {
+    timestamps: true
+});
 
-const User = mongoose.model('User', userSchema);
-
-module.exports = User;
+module.exports = mongoose.model('User', userSchema);

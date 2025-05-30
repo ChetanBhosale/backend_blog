@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { register, login, me, getUserDetails, updateProfile } = require('../controller/auth.controller');
+const { register, login, me, getUserDetails, updateProfile, sendOTP, verifyOTPAndRegister } = require('../controller/auth.controller');
 const { authenticateUser, authorizeRoles } = require('../middleware/auth.middleware');
 
 // Auth routes
-router.post('/register', register);
+router.post('/send-otp', sendOTP);
+router.post('/verify-otp-register', verifyOTPAndRegister);
 router.post('/login', login);
 router.get('/me', authenticateUser, me);
 
