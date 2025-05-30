@@ -323,3 +323,83 @@ exports.verifyOTPAndRegister = async (req, res) => {
     }
 };
 
+// Send OTP for forgot password
+exports.sendForgotPasswordOTP = async (req, res) => {
+    try {
+        const { email } = req.body;
+        
+        if (!email) {
+            return Response(res, 400, 'Email is required');
+        }
+
+        // Check if user exists
+        const user = await User.findOne({ email });
+        if (!user) {
+            return Response(res, 404, 'Email not found. Please register first');
+        }
+
+        // Generate OTP
+        const otp = generateOTP();
+        const otpExpiry = new Date();
+        otpExpiry.setMinutes(otpExpiry.getMinutes() + 10); // OTP valid for 10 minutes
+
+        // Update user with new OTP
+        user.otp = {
+            code: otp,
+            expiresAt: otpExpiry
+        };
+        await user.save();
+
+        // Send OTP email
+        const emailSent = await sendOTPEmail(email, otp);
+        if (!emailSent) {
+            return Response(res, 500, 'Failed to send OTP email');
+        }
+
+        return Response(res, 200, 'OTP sent successfully');
+    } catch (error) {
+        console.error('Send Forgot Password OTP Error:', error);
+        return Response(res, 500, error.message);
+    }
+};
+
+// Reset password using OTP
+exports.resetPassword = async (req, res) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+
+        if (!email || !otp || !newPassword) {
+            return Response(res, 400, 'All fields are required');
+        }
+
+        // Validate password length
+        if (newPassword.length < 6) {
+            return Response(res, 400, 'Password must be at least 6 characters long');
+        }
+
+        // Find user with valid OTP
+        const user = await User.findOne({
+            email,
+            'otp.code': otp,
+            'otp.expiresAt': { $gt: new Date() }
+        });
+
+        if (!user) {
+            return Response(res, 400, 'Invalid or expired OTP');
+        }
+
+        // Hash new password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        // Update user password and remove OTP
+        user.password = hashedPassword;
+        user.otp = undefined;
+        await user.save();
+
+        return Response(res, 200, 'Password reset successful');
+    } catch (error) {
+        return Response(res, 500, error.message);
+    }
+};
+
