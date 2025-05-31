@@ -2,7 +2,6 @@ const express = require('express');
 const app = express();
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
-const User = require('./model/User.model');
 const bcrypt = require('bcryptjs');
 const morgan = require('morgan');
 
@@ -75,6 +74,8 @@ app.use("/api/blogs", blogRoutes)
 app.get('/healt', async (req, res) => { 
     res.send('Server is running');
 })
+const User = require("./model/User.model")
+
 
 app.listen(PORT, async () => {
     console.log(`Server is running on port ${PORT}`);

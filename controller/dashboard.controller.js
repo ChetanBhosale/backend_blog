@@ -5,6 +5,7 @@ const { GoogleGenAI } = require("@google/genai");
 const { Response } = require("../services/Response");
 const { scrapeContent } = require("../services/scrape");
 const xml2js = require("xml2js");
+const { Group } = require("../model/group.model");
 dotenv.config();
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -247,5 +248,270 @@ exports.createContentUsingAI = async (req, res) => {
   } catch (error) {
     console.error("Error in createContentUsingAI:", error);
     return Response(res, 500, error.message || "Failed to generate content");
+  }
+};
+
+exports.getAllUser = async(req,res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const search = req.query.search || '';
+
+    // Create search query
+    const searchQuery = {
+      role: { $ne: 'admin' },
+      $or: [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { role: { $regex: search, $options: 'i' } }
+      ]
+    };
+
+    const users = await User.find(searchQuery)
+      .select('-password -otp') // Exclude sensitive fields
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    const totalUsers = await User.countDocuments(searchQuery);
+    const totalPages = Math.ceil(totalUsers / limit);
+
+    return Response(res, 200, "Users fetched successfully", {
+      users,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalUsers,
+        limit
+      }
+    });
+  } catch (error) {
+    return Response(res, 500, error.message);
+  }
+}
+
+exports.bannedUser = async(req,res) => {
+  try {
+    const userId = req.body.userId;
+
+    const findUser = await User.findById(userId);
+
+    if(!findUser){
+      return Response(res, 404, 'User not found');
+    }
+
+    findUser.isBanned = !findUser.isBanned;
+
+    await findUser.save();
+
+    return Response(res, 200, findUser?.isBanned ? 'User banned successfully' : 'User unbanned successfully');
+  } catch (error) {
+    return Response(res, 500, error.message);
+  }
+}
+
+exports.getGroups = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const search = req.query.search || '';
+
+    // Create search query
+    const searchQuery = {
+      isActive: true,
+      $or: [
+        { name: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+        { tags: { $regex: search, $options: 'i' } }
+      ]
+    };
+
+    // Get groups with populated creator and admin data
+    const groups = await Group.find(searchQuery)
+      .populate('createdBy', 'name email')
+      .populate('admins', 'name email')
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    // Get total count for pagination
+    const totalGroups = await Group.countDocuments(searchQuery);
+    const totalPages = Math.ceil(totalGroups / limit);
+
+    // Get member counts for each group
+    const groupsWithMemberCount = await Promise.all(
+      groups.map(async (group) => {
+        const memberCount = await JoinedGroup.countDocuments({ group: group._id });
+        const groupObj = group.toObject();
+        return {
+          ...groupObj,
+          totalMembers: memberCount
+        };
+      })
+    );
+
+    return Response(res, 200, "Groups fetched successfully", {
+      groups: groupsWithMemberCount,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalGroups,
+        limit
+      }
+    });
+  } catch (error) {
+    return Response(res, 500, error.message);
+  }
+}
+
+
+exports.banGroup = async (req, res) => {
+  try {
+    const groupId = req.body.groupId;
+
+    const findGroup = await Group.findById(groupId);
+
+    if(!findGroup){
+      return Response(res, 404, 'Group not found');
+    }
+
+    findGroup.isBanned = !findGroup.isBanned;
+
+    await findGroup.save();
+
+    return Response(res, 200, findGroup?.isBanned ? 'Group banned successfully' : 'Group unbanned successfully');
+  } catch (error) {
+    return Response(res, 500, error.message);
+  }
+}
+
+
+
+exports.getDashboardAnalytics = async (req, res) => {
+  try {
+    // 1. Summary Numbers
+    const [
+      totalUsers,
+      totalBlogs,
+      activeGroups,
+      bannedUsers,
+      todayActiveUsers,
+      newUsersThisMonth,
+      blogsThisMonth
+    ] = await Promise.all([
+      User.countDocuments({ isBanned: false }),
+      Blog.countDocuments(),
+      Group.countDocuments({ isActive: true }),
+      User.countDocuments({ isBanned: true }),
+      User.countDocuments({
+        updatedAt: {
+          $gte: new Date(new Date().setHours(0, 0, 0, 0))
+        }
+      }),
+      User.countDocuments({
+        createdAt: {
+          $gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+        }
+      }),
+      Blog.countDocuments({
+        createdAt: {
+          $gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+        }
+      })
+    ]);
+
+    // 2. Chart Data (last 12 months)
+    const months = Array.from({ length: 12 }, (_, i) => {
+      const d = new Date();
+      d.setMonth(d.getMonth() - (11 - i));
+      return { year: d.getFullYear(), month: d.getMonth() + 1 };
+    });
+
+    // Helper for aggregation
+    const getMonthlyCounts = async (Model) => {
+      const data = await Model.aggregate([
+        {
+          $match: {
+            createdAt: {
+              $gte: new Date(new Date().setMonth(new Date().getMonth() - 11, 1))
+            }
+          }
+        },
+        {
+          $group: {
+            _id: { year: { $year: "$createdAt" }, month: { $month: "$createdAt" } },
+            count: { $sum: 1 }
+          }
+        }
+      ]);
+      // Map to months array
+      return months.map(({ year, month }) => {
+        const found = data.find(d => d._id.year === year && d._id.month === month);
+        return { year, month, count: found ? found.count : 0 };
+      });
+    };
+
+    const [userGrowth, blogGrowth, groupGrowth] = await Promise.all([
+      getMonthlyCounts(User),
+      getMonthlyCounts(Blog),
+      getMonthlyCounts(Group)
+    ]);
+
+    // Daily Active Users (last 30 days)
+    const days = Array.from({ length: 30 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (29 - i));
+      return d.toISOString().slice(0, 10);
+    });
+
+    const dailyActiveUsersAgg = await User.aggregate([
+      {
+        $match: {
+          updatedAt: {
+            $gte: new Date(new Date().setDate(new Date().getDate() - 29))
+          }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: "$updatedAt" },
+            month: { $month: "$updatedAt" },
+            day: { $dayOfMonth: "$updatedAt" }
+          },
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+    const dailyActiveUsers = days.map(dateStr => {
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const found = dailyActiveUsersAgg.find(d =>
+        d._id.year === year && d._id.month === month && d._id.day === day
+      );
+      return { date: dateStr, count: found ? found.count : 0 };
+    });
+
+    // Response
+    return Response(res, 200, 'Dashboard analytics fetched', {
+      summary: {
+        totalUsers,
+        totalBlogs,
+        activeGroups,
+        bannedUsers,
+        todayActiveUsers,
+        newUsersThisMonth,
+        blogsThisMonth
+      },
+      charts: {
+        userGrowth,      // [{year, month, count}]
+        blogGrowth,      // [{year, month, count}]
+        groupGrowth,     // [{year, month, count}]
+        dailyActiveUsers // [{date, count}]
+      }
+    });
+  } catch (error) {
+    return Response(res, 500, error.message);
   }
 };

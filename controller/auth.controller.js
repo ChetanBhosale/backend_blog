@@ -24,7 +24,7 @@ exports.register = async (req, res) => {
             return Response(res, 400, 'Invalid role selected');
         }
 
-        // Check if user already exists
+        // Check if user already exist s
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             return Response(res, 400, 'User already exists');
@@ -81,6 +81,11 @@ exports.login = async (req, res) => {
         const user = await User.findOne({ email });
         if (!user) {
             return Response(res, 400, 'Invalid credentials');
+        }
+
+        // Check if user is banned
+        if (user.isBanned) {
+            return Response(res, 403, 'Your account has been banned. Please contact support for more information.');
         }
 
         let data = await User.find()
@@ -402,4 +407,3 @@ exports.resetPassword = async (req, res) => {
         return Response(res, 500, error.message);
     }
 };
-

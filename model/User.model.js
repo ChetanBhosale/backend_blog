@@ -48,6 +48,10 @@ const userSchema = new mongoose.Schema({
     counsellorDetails: {
         type: Object,
         default: {}
+    },
+    isBanned : {
+        type : Boolean,
+        default : false
     }
 }, {
     timestamps: true
