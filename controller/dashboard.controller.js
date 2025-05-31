@@ -5,6 +5,7 @@ const { GoogleGenAI } = require("@google/genai");
 const { Response } = require("../services/Response");
 const { scrapeContent } = require("../services/scrape");
 const xml2js = require("xml2js");
+const { Group } = require("../model/group.model");
 dotenv.config();
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
