@@ -6,6 +6,7 @@ const { Response } = require("../services/Response");
 const { scrapeContent } = require("../services/scrape");
 const xml2js = require("xml2js");
 const { Group } = require("../model/group.model");
+const PagesModel = require("../model/Pages.model");
 dotenv.config();
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -253,7 +254,7 @@ exports.createContentUsingAI = async (req, res) => {
 
 exports.getPageData = async (req, res) => {
   try {
-    const pagesData = await Pages.find();
+    const pagesData = await PagesModel.find();
     
     if (!pagesData || pagesData.length === 0) {
       return Response(res, 404, "No pages found");
@@ -275,7 +276,7 @@ exports.updatePageData = async (req, res) => {
       return Response(res, 400, "Page type and description are required");
     }
 
-    const updatedPage = await Pages.findOneAndUpdate(
+    const updatedPage = await PagesModel.findOneAndUpdate(
       { title: pageType },
       { description },
       { new: true, upsert: true }
