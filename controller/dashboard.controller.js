@@ -5,7 +5,6 @@ const { GoogleGenAI } = require("@google/genai");
 const { Response } = require("../services/Response");
 const { scrapeContent } = require("../services/scrape");
 const xml2js = require("xml2js");
-const { Group } = require("../model/group.model");
 dotenv.config();
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -248,6 +247,43 @@ exports.createContentUsingAI = async (req, res) => {
   } catch (error) {
     console.error("Error in createContentUsingAI:", error);
     return Response(res, 500, error.message || "Failed to generate content");
+  }
+};
+
+exports.getPageData = async (req, res) => {
+  try {
+    const pagesData = await Pages.find();
+    
+    if (!pagesData || pagesData.length === 0) {
+      return Response(res, 404, "No pages found");
+    }
+
+    return Response(res, 200, "Pages data fetched successfully", pagesData);
+  } catch (error) {
+    console.error("Error in getPageData:", error);
+    return Response(res, 500, error.message || "Failed to fetch pages data");
+  }
+};
+
+exports.updatePageData = async (req, res) => {
+  try {
+    const { pageType } = req.params;
+    const { description } = req.body;
+
+    if (!pageType || !description) {
+      return Response(res, 400, "Page type and description are required");
+    }
+
+    const updatedPage = await Pages.findOneAndUpdate(
+      { title: pageType },
+      { description },
+      { new: true, upsert: true }
+    );
+
+    return Response(res, 200, "Page data updated successfully", updatedPage);
+  } catch (error) {
+    console.error("Error in updatePageData:", error);
+    return Response(res, 500, error.message || "Failed to update page data");
   }
 };
 
