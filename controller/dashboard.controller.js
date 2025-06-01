@@ -404,7 +404,6 @@ exports.getGroups = async (req, res) => {
   }
 }
 
-
 exports.banGroup = async (req, res) => {
   try {
     const groupId = req.body.groupId;
@@ -424,8 +423,6 @@ exports.banGroup = async (req, res) => {
     return Response(res, 500, error.message);
   }
 }
-
-
 
 exports.getDashboardAnalytics = async (req, res) => {
   try {
@@ -553,3 +550,33 @@ exports.getDashboardAnalytics = async (req, res) => {
     return Response(res, 500, error.message);
   }
 };
+
+exports.getTotalGroupsMembess = async (req,res) => {
+  try {
+    const totalGroups = await Group.find();
+    return Response(res, 200, "Total groups and members fetched successfully", {
+      totalGroups,
+    });
+  } catch (error) {
+    return Response(res, 500, error.message);
+  }
+}
+
+exports.deleteOrInActiveGroup = async (req,res) => {
+  try {
+    const {groupId,process} = req.body;
+
+    if(process === "DELETE"){
+      const deleteGroup = await Group.findByIdAndDelete(groupId);
+      return Response(res, 200, "Group deleted successfully", deleteGroup);
+    }else{
+      let findGroup = await Group.findById(groupId);
+      value = findGroup.isActive;
+      findGroup.isActive = !value;
+      await findGroup.save();
+      return Response(res, 200, "Group isActive status updated successfully", findGroup);
+    }
+  } catch (error) {
+    return Response(res, 500, error.message);
+  }
+}

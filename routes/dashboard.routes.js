@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { createBlog, getAdminBlogs, createContentUsingAI, deleteBlog, getBlogById, updateBlog, bannedUser, getDashboardAnalytics, getAllUser, getPageData, updatePageData } = require("../controller/dashboard.controller");
+const { createBlog, getAdminBlogs, createContentUsingAI, deleteBlog, getBlogById, updateBlog, bannedUser, getDashboardAnalytics, getAllUser, getPageData, updatePageData, getTotalGroupsMembess, deleteOrInActiveGroup } = require("../controller/dashboard.controller");
 const { uploadImage } = require("../middleware/uploadImage.middleware");
 const { authorizeRoles, authenticateUser } = require("../middleware/auth.middleware");
 const { route } = require("./blog.routes");
@@ -17,6 +17,8 @@ router.get('/users', [authenticateUser, authorizeRoles('admin')], getAllUser);
 router.post('/user-ban', [authenticateUser, authorizeRoles('admin')], bannedUser);
 
 router.get('/analytics', [authenticateUser, authorizeRoles('admin')], getDashboardAnalytics);
+router.get('/total-groups-members', [authenticateUser, authorizeRoles('admin')], getTotalGroupsMembess);
 
+router.post('/delete-or-in-active-group', [authenticateUser, authorizeRoles('admin')], deleteOrInActiveGroup);
 
 module.exports = router;
