@@ -2,7 +2,10 @@ const express = require("express");
 const router = express.Router();
 const { createBlog, getAdminBlogs, createContentUsingAI, deleteBlog, getBlogById, updateBlog, bannedUser, getDashboardAnalytics, getAllUser, getPageData, updatePageData, getTotalGroupsMembess, deleteOrInActiveGroup } = require("../controller/dashboard.controller");
 const { uploadImage } = require("../middleware/uploadImage.middleware");
-const { authorizeRoles, authenticateUser } = require("../middleware/auth.middleware");
+const {
+  authorizeRoles,
+  authenticateUser,
+} = require("../middleware/auth.middleware");
 const { route } = require("./blog.routes");
 
 router.post("/create-blog",[authenticateUser,authorizeRoles('admin'),uploadImage], createBlog);

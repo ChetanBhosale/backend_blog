@@ -1,5 +1,5 @@
 const express = require("express");
-const { createGroup, getAllGroups, leaveGroup, getUserChats, getSingleConverstationChat, sendMessage, joinGroup, sendFriendRequest, respondToFriendRequest, getPendingFriendRequests, getMostUsedGroupTags, getReleatedGroups, rateUserInGroup, getUserRatingsInGroup } = require("../controller/groups.controller");
+const { createGroup, getAllGroups, leaveGroup, getUserChats, getSingleConverstationChat, sendMessage, joinGroup, sendFriendRequest, respondToFriendRequest, getPendingFriendRequests, getMostUsedGroupTags, getReleatedGroups, rateUserInGroup, getUserRatingsInGroup, getAllGroupsDetailsForGuest } = require("../controller/groups.controller");
 const { authenticateUser } = require("../middleware/auth.middleware");
 const { uploadImage } = require("../middleware/uploadImage.middleware");
 const router = express.Router();
@@ -18,6 +18,7 @@ router.get('/most-used-group-tags', getMostUsedGroupTags)
 router.get('/get-related-blogs/:id', getReleatedGroups)
 router.post('/rate', authenticateUser,rateUserInGroup);
 router.get('/:groupId/ratings/:userId', getUserRatingsInGroup);
+router.get('/single-groups/:id', getAllGroupsDetailsForGuest);
 
 
 module.exports = router;
