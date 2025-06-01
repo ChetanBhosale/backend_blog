@@ -87,9 +87,11 @@ exports.login = async (req, res) => {
         if (user.isBanned) {
             return Response(res, 403, 'Your account has been banned. Please contact support for more information.');
         }
+        console.log(user)
+        const isValidPassword =  bcrypt.compare(password, user.password);
 
-        let data = await User.find()
-        const isValidPassword = await bcrypt.compare(password, user.password);
+        console.log({password,email,user,isValidPassword})
+
         if (!isValidPassword) {
             return Response(res, 400, 'Invalid credentials');
         }
@@ -119,6 +121,7 @@ exports.login = async (req, res) => {
         });
 
     } catch (error) {
+        console.log(error)
         return Response(res, 500, error.message);
     }
 };
@@ -170,12 +173,15 @@ exports.updateProfile = async (req, res) => {
         if (bio) user.bio = bio.trim();
 
         // Update role-specific details based on user's role
-        switch (user.roles) {
+        switch (user.role) {
             case 'student':
                 if (studentDetails) {
                     user.studentDetails = {
                         ...user.studentDetails,
-                        ...studentDetails
+                        ...studentDetails,
+                        // Ensure arrays are properly handled
+                        interests: studentDetails.interests || user.studentDetails.interests || [],
+                        achievements: studentDetails.achievements || user.studentDetails.achievements || []
                     };
                 }
                 break;
@@ -183,7 +189,11 @@ exports.updateProfile = async (req, res) => {
                 if (collegeStudentDetails) {
                     user.collegeStudentDetails = {
                         ...user.collegeStudentDetails,
-                        ...collegeStudentDetails
+                        ...collegeStudentDetails,
+                        // Ensure arrays are properly handled
+                        skills: collegeStudentDetails.skills || user.collegeStudentDetails.skills || [],
+                        projects: collegeStudentDetails.projects || user.collegeStudentDetails.projects || [],
+                        internships: collegeStudentDetails.internships || user.collegeStudentDetails.internships || []
                     };
                 }
                 break;
@@ -191,7 +201,16 @@ exports.updateProfile = async (req, res) => {
                 if (counsellorDetails) {
                     user.counsellorDetails = {
                         ...user.counsellorDetails,
-                        ...counsellorDetails
+                        ...counsellorDetails,
+                        // Ensure arrays are properly handled
+                        languages_known: counsellorDetails.languages_known || user.counsellorDetails.languages_known || [],
+                        certifications: counsellorDetails.certifications || user.counsellorDetails.certifications || [],
+                        expertise_areas: counsellorDetails.expertise_areas || user.counsellorDetails.expertise_areas || [],
+                        // Ensure availability object is properly handled
+                        availability: {
+                            ...user.counsellorDetails.availability,
+                            ...counsellorDetails.availability
+                        }
                     };
                 }
                 break;
@@ -199,9 +218,10 @@ exports.updateProfile = async (req, res) => {
 
         await user.save();
 
-        // Remove password from response
+        // Remove sensitive information from response
         const updatedUser = user.toObject();
         delete updatedUser.password;
+        delete updatedUser.otp;
 
         return Response(res, 200, 'Profile updated successfully', { user: updatedUser });
     } catch (error) {
@@ -226,6 +246,7 @@ exports.sendOTP = async (req, res) => {
 
         // Generate OTP
         const otp = generateOTP();
+        console.log({otp})
         const otpExpiry = new Date();
         otpExpiry.setMinutes(otpExpiry.getMinutes() + 10); // OTP valid for 10 minutes
 

@@ -39,19 +39,76 @@ const userSchema = new mongoose.Schema({
     bio: String,
     studentDetails: {
         type: Object,
-        default: {}
+        default: {
+            school_name: '',
+            grade: '',
+            phone: '',
+            parent_name: '',
+            parent_phone: '',
+            address: '',
+            city: '',
+            state: '',
+            pincode: '',
+            date_of_birth: '',
+            gender: '',
+            interests: [],
+            achievements: []
+        }
     },
     collegeStudentDetails: {
         type: Object,
-        default: {}
+        default: {
+            college_name: '',
+            college_email: '',
+            college_id: '',
+            course: '',
+            semester: '',
+            department: '',
+            phone: '',
+            address: '',
+            city: '',
+            state: '',
+            pincode: '',
+            date_of_birth: '',
+            gender: '',
+            skills: [],
+            projects: [],
+            internships: [],
+            cgpa: ''
+        }
     },
     counsellorDetails: {
         type: Object,
-        default: {}
+        default: {
+            qualification: '',
+            specialization: '',
+            experience_years: '',
+            phone: '',
+            address: '',
+            city: '',
+            state: '',
+            pincode: '',
+            date_of_birth: '',
+            gender: '',
+            languages_known: [],
+            certifications: [],
+            consultation_fee: '',
+            availability: {
+                monday: { start: '', end: '' },
+                tuesday: { start: '', end: '' },
+                wednesday: { start: '', end: '' },
+                thursday: { start: '', end: '' },
+                friday: { start: '', end: '' },
+                saturday: { start: '', end: '' },
+                sunday: { start: '', end: '' }
+            },
+            bio: '',
+            expertise_areas: []
+        }
     },
-    isBanned : {
-        type : Boolean,
-        default : false
+    isBanned: {
+        type: Boolean,
+        default: false
     }
 }, {
     timestamps: true
