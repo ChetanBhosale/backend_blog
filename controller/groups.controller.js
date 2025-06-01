@@ -851,6 +851,20 @@ const sendFriendRequest = async (req, res) => {
       ],
     });
 
+    if(existingChat?.status === "pending"){
+      return res.status(400).json({
+        success: false,
+        message: "Friend request already sent",
+      });
+    }
+
+    if(existingChat?.status === "rejected"){
+      return res.status(400).json({
+        success: false,
+        message: "User rejected your friend request",
+      });
+    }
+
     if (existingChat) {
       return res.status(400).json({
         success: false,
