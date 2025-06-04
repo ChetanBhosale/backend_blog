@@ -12,6 +12,7 @@ cloudinary.config({
 exports.uploadImage = async (req, res, next) => {
     try {
         // Check if req.files exists and has image property
+        console.log({updatedFilesData:req.files});
         if (!req.files || !req.files.image) {
             return next();
         }

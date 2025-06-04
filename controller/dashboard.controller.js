@@ -76,7 +76,7 @@ exports.getBlogById = async (req, res) => {
 exports.updateBlog = async (req, res) => {
   try {
     const blogId = req.params.id;
-    const { title, content, tags, isFeatured } = req.body;
+    const { title, content, tags, isFeatured, image='' } = req.body;
 
     // Find the blog
     const existingBlog = await Blog.findById(blogId);
@@ -98,11 +98,8 @@ exports.updateBlog = async (req, res) => {
       isFeatured
     };
 
-    // If new image uploaded, convert to base64
-    if (req.file) {
-      const imageBuffer = req.file.buffer.toString("base64");
-      const mimeType = req.file.mimetype;
-      updatedData.image = `data:${mimeType};base64,${imageBuffer}`;
+    if(image.length > 0){
+      updatedData.image = image;
     }
 
     // Update blog

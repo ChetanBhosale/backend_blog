@@ -510,14 +510,23 @@ const getSingleConverstationChat = async (req, res) => {
 
     // First check if it's a group chat
     const group = await Group.findById(id)
-      .populate("createdBy", "name email roles")
-      .populate("admins", "name email roles")
-      .populate("members", "name email roles")
+      .populate({
+        path: "createdBy",
+        select: "name email role bio studentDetails collegeStudentDetails counsellorDetails isEmailVerified isBanned"
+      })
+      .populate({
+        path: "admins",
+        select: "name email role bio studentDetails collegeStudentDetails counsellorDetails isEmailVerified isBanned"
+      })
+      .populate({
+        path: "members",
+        select: "name email role bio studentDetails collegeStudentDetails counsellorDetails isEmailVerified isBanned"
+      })
       .populate({
         path: "messages",
         populate: {
           path: "sender",
-          select: "name email roles",
+          select: "name email role bio studentDetails collegeStudentDetails counsellorDetails isEmailVerified isBanned"
         },
       });
 
@@ -539,6 +548,41 @@ const getSingleConverstationChat = async (req, res) => {
         user: userId,
       });
 
+      // Helper function to process user data
+      const processUserData = (user) => {
+        if (!user) return null;
+        const userData = user.toObject();
+        // Remove sensitive data
+        delete userData.password;
+        delete userData.otp;
+
+        // Get only the role-specific details based on user's role
+        let roleSpecificDetails = null;
+        switch (user.role) {
+          case 'student':
+            roleSpecificDetails = user.studentDetails;
+            break;
+          case 'collage_student':
+            roleSpecificDetails = user.collegeStudentDetails;
+            break;
+          case 'counsellor':
+            roleSpecificDetails = user.counsellorDetails;
+            break;
+        }
+
+        // Return only basic info and role-specific details
+        return {
+          _id: userData._id,
+          name: userData.name,
+          email: userData.email,
+          role: userData.role,
+          bio: userData.bio,
+          isEmailVerified: userData.isEmailVerified,
+          isBanned: userData.isBanned,
+          roleSpecificDetails
+        };
+      };
+
       return res.status(200).json({
         success: true,
         data: {
@@ -548,14 +592,14 @@ const getSingleConverstationChat = async (req, res) => {
             name: group.name,
             image: group.image,
             description: group.description,
-            createdBy: group.createdBy,
-            admins: group.admins,
-            members: group.members,
+            createdBy: processUserData(group.createdBy),
+            admins: group.admins.map(processUserData),
+            members: group.members.map(processUserData),
             userRole: joinedGroup.role,
             messages: group.messages.map((message) => ({
               _id: message._id,
               content: message.content,
-              sender: message.sender,
+              sender: processUserData(message.sender),
               attachments: message.attachments,
               role: message.role,
               createdAt: message.createdAt,
@@ -571,13 +615,19 @@ const getSingleConverstationChat = async (req, res) => {
       _id: id,
       $or: [{ sender: userId }, { receiver: userId }],
     })
-      .populate("sender", "name email roles")
-      .populate("receiver", "name email roles")
+      .populate({
+        path: "sender",
+        select: "name email role bio studentDetails collegeStudentDetails counsellorDetails isEmailVerified isBanned"
+      })
+      .populate({
+        path: "receiver",
+        select: "name email role bio studentDetails collegeStudentDetails counsellorDetails isEmailVerified isBanned"
+      })
       .populate({
         path: "messages",
         populate: {
           path: "sender",
-          select: "name email roles",
+          select: "name email role bio studentDetails collegeStudentDetails counsellorDetails isEmailVerified isBanned"
         },
       });
 
@@ -587,23 +637,53 @@ const getSingleConverstationChat = async (req, res) => {
           ? privateChat.receiver
           : privateChat.sender;
 
+      // Helper function to process user data
+      const processUserData = (user) => {
+        if (!user) return null;
+        const userData = user.toObject();
+        // Remove sensitive data
+        delete userData.password;
+        delete userData.otp;
+
+        // Get only the role-specific details based on user's role
+        let roleSpecificDetails = null;
+        switch (user.role) {
+          case 'student':
+            roleSpecificDetails = user.studentDetails;
+            break;
+          case 'collage_student':
+            roleSpecificDetails = user.collegeStudentDetails;
+            break;
+          case 'counsellor':
+            roleSpecificDetails = user.counsellorDetails;
+            break;
+        }
+
+        // Return only basic info and role-specific details
+        return {
+          _id: userData._id,
+          name: userData.name,
+          email: userData.email,
+          role: userData.role,
+          bio: userData.bio,
+          isEmailVerified: userData.isEmailVerified,
+          isBanned: userData.isBanned,
+          roleSpecificDetails
+        };
+      };
+
       return res.status(200).json({
         success: true,
         data: {
           group_chat: false,
           chat_details: {
             _id: privateChat._id,
-            otherUser: {
-              _id: otherUser._id,
-              name: otherUser.name,
-              email: otherUser.email,
-              roles: otherUser.roles,
-            },
+            otherUser: processUserData(otherUser),
             isAccepted: privateChat.isAccepted,
             messages: privateChat.messages.map((message) => ({
               _id: message._id,
               content: message.content,
-              sender: message.sender,
+              sender: processUserData(message.sender),
               attachments: message.attachments,
               role: message.role,
               createdAt: message.createdAt,
