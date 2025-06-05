@@ -1,3 +1,3 @@
-const roles =  ['student', 'collage_student', 'admin', "counsellor"]
+const roles =  ['student', 'college_student', 'admin', "counsellor"]
 
 exports.roles = roles;

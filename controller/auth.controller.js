@@ -20,7 +20,7 @@ exports.register = async (req, res) => {
         role = role.trim();
 
         // Check if role is valid and not admin
-        if (!role || !['student', 'collage_student', 'counsellor'].includes(role)) {
+        if (!role || !['student', 'college_student', 'counsellor'].includes(role)) {
             return Response(res, 400, 'Invalid role selected');
         }
 
@@ -185,7 +185,7 @@ exports.updateProfile = async (req, res) => {
                     };
                 }
                 break;
-            case 'collage_student':
+            case 'college_student':
                 if (collegeStudentDetails) {
                     user.collegeStudentDetails = {
                         ...user.collegeStudentDetails,
@@ -304,7 +304,7 @@ exports.verifyOTPAndRegister = async (req, res) => {
         }
 
         // Check if role is valid
-        if (!['student', 'collage_student', 'counsellor'].includes(role)) {
+        if (!['student', 'college_student', 'counsellor'].includes(role)) {
             return Response(res, 400, 'Invalid role selected');
         }
 
