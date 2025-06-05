@@ -562,7 +562,7 @@ const getSingleConverstationChat = async (req, res) => {
           case 'student':
             roleSpecificDetails = user.studentDetails;
             break;
-          case 'collage_student':
+          case 'college_student':
             roleSpecificDetails = user.collegeStudentDetails;
             break;
           case 'counsellor':
@@ -651,7 +651,7 @@ const getSingleConverstationChat = async (req, res) => {
           case 'student':
             roleSpecificDetails = user.studentDetails;
             break;
-          case 'collage_student':
+          case 'college_student':
             roleSpecificDetails = user.collegeStudentDetails;
             break;
           case 'counsellor':
