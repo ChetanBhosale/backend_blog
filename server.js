@@ -10,8 +10,6 @@ const path = require('path');
 dotenv.config();
 const cors = require('cors');
 
-console.log('hello')
-
 app.use(cors({
     origin: ['http://localhost:3000', 'http://localhost:8080', "http://localhost:8082","https://student-portal-snowy-ten.vercel.app"],
     credentials: true,
