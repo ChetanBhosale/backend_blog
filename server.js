@@ -11,7 +11,7 @@ dotenv.config();
 const cors = require('cors');
 
 app.use(cors({
-    origin: ['http://localhost:3000', 'http://localhost:8080', "http://localhost:8082","https://student-portal-snowy-ten.vercel.app"],
+    origin: ['http://localhost:3000', 'http://localhost:8080', "http://localhost:8082","https://student-portal-snowy-ten.vercel.app","https://pathwaypeers.com"],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
